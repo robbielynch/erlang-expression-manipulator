@@ -8,11 +8,11 @@
 %%% Created :  8 Oct 2013 by Robbie <robbie.lynch@outlook.com>
 %%%-------------------------------------------------------------------
 -module(rex).
--export ([parse/1,eval/1,p/1]).
+-export ([parse/1,eval/1,p/1,toParseTree/1,stack/2]).
 
 
 
-%Evaluation funtions
+%DONE Evaluation funtions
 eval({int, X}) -> X;
 eval({unOp, X, Y}) -> -eval(Y);
 eval({binOp, add, L, R}) -> eval(L) + eval(R);
@@ -48,6 +48,7 @@ parse([H|T]) when (H > 47) and (H < 58) ->
 	lists:append([{int, H-48}], parse(T)).
 
 
+%Extracts an integer from an string and returns the remaining string
 getInt([], Accum)->
 	{ok, Accum, []};
 getInt([H|T], Accum) when (H > 47) and (H < 58) ->
@@ -55,4 +56,61 @@ getInt([H|T], Accum) when (H > 47) and (H < 58) ->
 	getInt(T, Integer);
 getInt([H|T], Accum)->
 	{ok, Accum, [H|T]}.
-	
+
+
+
+% convertInfixToPrefix([], Structure)->
+% 	[];
+% convertInfixToPrefix([{unOp, minus}|Tail], Structure)->
+% 	{unOp}
+% convertInfixToPrefix([{binOp, Operand}|Tail], Structure)->
+% 	NewStructure = Structure ++ {binOp, Operand, convertInfixToPrefix(Tail)}.
+
+toParseTree([])->
+	{};
+toParseTree([{unOp, minus}|T]) ->
+	{unOp, minus, toParseTree(T)};
+toParseTree([{unOp, add}|T])->
+	{binOp, add, toParseTree(T)};
+toParseTree([{unOp, sub}|T])->
+	{binOp, sub, toParseTree(T)};
+toParseTree([{unOp, divide}|T])->
+	{binOp, divide, toParseTree(T)};
+toParseTree([{unOp, multiply}|T])->
+	{binOp, multiply, toParseTree(T)};
+toParseTree([{bracket, left}|T]) ->
+	toParseTree(T);
+toParseTree([{bracket, right}|T]) ->
+	toParseTree(T);
+toParseTree([{int, Number}|T])->
+	{int, Number}.
+
+% [{unOp,minus},{bracket,left},{int,7},{binOp,add},{bracket,left},{int,6},{binOp,divide},{int,2},{bracket,right},{bracket,right}]
+
+stack({push, Value}, StackList)->
+	[Value | StackList];
+stack({add}, [Stack1,Stack2 | StackTail])->
+	Sum = Stack1 + Stack2,
+	[Sum | StackTail];
+stack({sub}, [Stack1,Stack2 | StackTail])->
+	Sum = Stack1 - Stack2,
+	[Sum | StackTail];
+stack({divide}, [Stack1,Stack2 | StackTail])->
+	Sum = Stack1 / Stack2,
+	[Sum | StackTail];
+stack({multiply}, [Stack1,Stack2 | StackTail])->
+	Sum = Stack1 * Stack2,
+	[Sum | StackTail];
+stack({ret}, [Stack1,Stack2 | StackTail])->
+	Sum = Stack1 + Stack2,
+	[Sum | StackTail];
+stack({pop}, [StackHead | _])->
+	erlang:display(StackHead).
+
+% pop([Head | StackList])->
+% 	{ok, Head, StackList};		
+% push(Value, StackList)->
+% 	{ok, [Head | StackList]}.
+
+
+
