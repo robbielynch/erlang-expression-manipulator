@@ -14,7 +14,7 @@
 
 %DONE Evaluation funtions
 eval({int, X}) -> X;
-eval({unOp, X, Y}) -> -eval(Y);
+eval({unOp, _, Y}) -> -eval(Y);
 eval({binOp, add, L, R}) -> eval(L) + eval(R);
 eval({binOp, sub, L, R}) -> eval(L) - eval(R);
 eval({binOp, divide, L, R}) -> eval(L) / eval(R);
@@ -31,7 +31,10 @@ rexify(S)->
 parse([]) -> [];
 parse([H|T]) when H =:= $~ ->
 	lists:append([{unOp, minus}], parse(T));
-%Operands
+%If token is a space just ignore it
+parse([H|T]) when H =:= 32 ->
+	parse(T);
+%Operands - if token is operand, add to parsed list
 parse([H|T]) when H =:= $+ ->
 	lists:append([{binOp, add,2}], parse(T));
 parse([H|T]) when H =:= $- ->
@@ -51,7 +54,6 @@ parse([H, H2|T]) when (H > 47) and (H < 58) and (H2 > 47) and (H2 < 58) ->
 parse([H|T]) when (H > 47) and (H < 58) ->
 	lists:append([{int, H-48}], parse(T)).
 
-
 %Extracts an integer from an string and returns the remaining string
 getInt([], Accum)->
 	{ok, Accum, []};
@@ -60,6 +62,9 @@ getInt([H|T], Accum) when (H > 47) and (H < 58) ->
 	getInt(T, Integer);
 getInt([H|T], Accum)->
 	{ok, Accum, [H|T]}.
+
+
+
 
 
 %Number, push to output queue
@@ -109,6 +114,9 @@ popFromStackUntilLeftBracketFound(Tokens, [StackHead | StackTail], OutputQueue)-
 	popFromStackUntilLeftBracketFound(Tokens, StackTail, OutputQueue ++ [StackHead]).
 
 
+
+
+
 evalRPN([],Stack)-> 
 	stack(pop, Stack);
 %If token is number, push to stack
@@ -116,13 +124,16 @@ evalRPN([{int, Value} | T], Stack)->
 	erlang:display(Stack),
 	evalRPN(T, [{int, Value}] ++ Stack);
 %If operator
-evalRPN([{binOp, Operator, Precedence} | T], Stack)->
+evalRPN([{binOp, Operator, _} | T], Stack)->
 	% {ok, PoppedValue1, NewStack1} = stack(pop, Stack),
 	% {ok, PoppedValue2, NewStack2} = stack(pop, NewStack1),
 	{ok, Sum, NewStack3} = stack(Operator, Stack),
 	{ok, NewStack4} = stack({push, Sum}, NewStack3),
 	evalRPN(T, NewStack4).
 	
+
+
+
 
 stack({push, Value}, StackList)->
 	{ok, [Value] ++ StackList};
