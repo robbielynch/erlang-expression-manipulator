@@ -8,7 +8,7 @@
 %%% Created :  8 Oct 2013 by Robbie <robbie.lynch@outlook.com>
 %%%-------------------------------------------------------------------
 -module(rex).
--export ([parse/1,eval/1,p/1,toParseTree/1,stack/2]).
+-export ([parse/1,eval/1,rexify/1,shuntingYard/3,stack/2]).
 
 
 
@@ -20,25 +20,29 @@ eval({binOp, sub, L, R}) -> eval(L) - eval(R);
 eval({binOp, divide, L, R}) -> eval(L) / eval(R);
 eval({binOp, multiply, L, R}) -> eval(L) * eval(R).
 
-p(S)->
-	lists:flatten([parse(S)]).
+rexify(S)->
+	Tokens = lists:flatten([parse(S)]),
+	RPNExpression = shuntingYard(Tokens, [], []),
+	{ok, {int, Answer}, _} = evalRPN(RPNExpression, []),
+	Answer.
+
 
 %Take as input a String
 parse([]) -> [];
-parse([H|T]) when H =:= 126 ->
+parse([H|T]) when H =:= $~ ->
 	lists:append([{unOp, minus}], parse(T));
 %Operands
-parse([H|T]) when H =:= 43 ->
-	lists:append([{binOp, add}], parse(T));
-parse([H|T]) when H =:= 45 ->
-	lists:append([{binOp, sub}], parse(T));
-parse([H|T]) when H =:= 42 ->
-	lists:append([{binOp, multiply}], parse(T));
-parse([H|T]) when H =:= 47 ->
-	lists:append([{binOp, divide}], parse(T));
-parse([H|T]) when H =:= 40 ->
+parse([H|T]) when H =:= $+ ->
+	lists:append([{binOp, add,2}], parse(T));
+parse([H|T]) when H =:= $- ->
+	lists:append([{binOp, sub,2}], parse(T));
+parse([H|T]) when H =:= $* ->
+	lists:append([{binOp, multiply,3}], parse(T));
+parse([H|T]) when H =:= $/ ->
+	lists:append([{binOp, divide,3}], parse(T));
+parse([H|T]) when H =:= $( ->
 	lists:append([{bracket, left}], parse(T));
-parse([H|T]) when H =:= 41 ->
+parse([H|T]) when H =:= $) ->
 	lists:append([{bracket, right}], parse(T));
 parse([H, H2|T]) when (H > 47) and (H < 58) and (H2 > 47) and (H2 < 58) ->
 	{ok, Integer, Tail} = getInt([H,H2|T], []),
@@ -58,59 +62,90 @@ getInt([H|T], Accum)->
 	{ok, Accum, [H|T]}.
 
 
+%Number, push to output queue
+shuntingYard([{int, Integer} | T], Stack, OutputQueue)->
+	erlang:display("shuntingYard Number\n"),
+	% NewOutputQueue = [OutputQueue | {int, Integer}],
+	NewOutputQueue =  OutputQueue ++ [{int, Integer}],
+	shuntingYard(T, Stack, NewOutputQueue);
 
-% convertInfixToPrefix([], Structure)->
-% 	[];
-% convertInfixToPrefix([{unOp, minus}|Tail], Structure)->
-% 	{unOp}
-% convertInfixToPrefix([{binOp, Operand}|Tail], Structure)->
-% 	NewStructure = Structure ++ {binOp, Operand, convertInfixToPrefix(Tail)}.
+%Operator - When TokenOp <= StakOp precedence - pop off stack and put it in the output queue, put tokenOp on stack
+shuntingYard([{binOp, TokenOp, Precedence} | T], [{binOp,StackOp,StackHeadPrec} | StackTail],  OutputQueue) when (Precedence =< StackHeadPrec) ->
+	erlang:display("shuntingYard Operator\n"),
+	%pop op off stack and put it in output queue
+	shuntingYard(T, [{binOp, TokenOp, Precedence}] ++ [StackTail], OutputQueue ++ [{binOp,StackOp,StackHeadPrec}]);
+%Operator - when token is op and stack head is op AND stackOp has > precedence - push TokenOp
+shuntingYard([{binOp, TokenOp, Precedence} | T], [{binOp,StackOp,StackHeadPrec} | StackTail],  OutputQueue) ->
+	erlang:display("shuntingYard Operator\n"),
+	%push op to stack
+	shuntingYard(T, [{binOp, TokenOp, Precedence},{binOp,StackOp,StackHeadPrec}] ++ StackTail, OutputQueue);
+%Operator without operator on stack - push op to stack
+shuntingYard([{binOp, TokenOp, Precedence} | T], Stack,  OutputQueue) ->
+	erlang:display("shuntingYard Operator\n"),
+	%push op to stack
+	shuntingYard(T, [{binOp, TokenOp, Precedence}] ++ Stack, OutputQueue);
 
-toParseTree([])->
-	{};
-toParseTree([{unOp, minus}|T]) ->
-	{unOp, minus, toParseTree(T)};
-toParseTree([{unOp, add}|T])->
-	{binOp, add, toParseTree(T)};
-toParseTree([{unOp, sub}|T])->
-	{binOp, sub, toParseTree(T)};
-toParseTree([{unOp, divide}|T])->
-	{binOp, divide, toParseTree(T)};
-toParseTree([{unOp, multiply}|T])->
-	{binOp, multiply, toParseTree(T)};
-toParseTree([{bracket, left}|T]) ->
-	toParseTree(T);
-toParseTree([{bracket, right}|T]) ->
-	toParseTree(T);
-toParseTree([{int, Number}|T])->
-	{int, Number}.
+%Left bracket Push to stack
+shuntingYard([{bracket,left} | T], Stack,  OutputQueue)->
+	erlang:display("shuntingYard LB\n"),
+	shuntingYard(T, [{bracket,left}] ++ Stack, OutputQueue);
+%Rigth bracket
+shuntingYard([{bracket,right} | T], Stack,  OutputQueue)->
+	erlang:display("shuntingYard RB\n"),
+	{NewTokens,NewStack,NewOutputQueue} = popFromStackUntilLeftBracketFound(T, Stack,  OutputQueue),
+	shuntingYard(NewTokens,NewStack,NewOutputQueue);
+%No more tokens left. Pop all from stack onto output queue
+shuntingYard([],[StackHead | StackTail],OutputQueue)->
+	erlang:display("shuntingYard No tokens left\n"),
+	shuntingYard([], StackTail, OutputQueue ++ [StackHead]);
+%Empty tokens and empty stack - return the output queue
+shuntingYard([],[],OutputQueue)->
+	OutputQueue.
 
-% [{unOp,minus},{bracket,left},{int,7},{binOp,add},{bracket,left},{int,6},{binOp,divide},{int,2},{bracket,right},{bracket,right}]
+
+popFromStackUntilLeftBracketFound(Tokens, [{bracket,left} | StackTail], OutputQueue)->
+	{Tokens, StackTail, OutputQueue};
+popFromStackUntilLeftBracketFound(Tokens, [StackHead | StackTail], OutputQueue)->
+	popFromStackUntilLeftBracketFound(Tokens, StackTail, OutputQueue ++ [StackHead]).
+
+
+evalRPN([],Stack)-> 
+	stack(pop, Stack);
+%If token is number, push to stack
+evalRPN([{int, Value} | T], Stack)-> 
+	erlang:display(Stack),
+	evalRPN(T, [{int, Value}] ++ Stack);
+%If operator
+evalRPN([{binOp, Operator, Precedence} | T], Stack)->
+	% {ok, PoppedValue1, NewStack1} = stack(pop, Stack),
+	% {ok, PoppedValue2, NewStack2} = stack(pop, NewStack1),
+	{ok, Sum, NewStack3} = stack(Operator, Stack),
+	{ok, NewStack4} = stack({push, Sum}, NewStack3),
+	evalRPN(T, NewStack4).
+	
 
 stack({push, Value}, StackList)->
-	[Value | StackList];
-stack({add}, [Stack1,Stack2 | StackTail])->
-	Sum = Stack1 + Stack2,
-	[Sum | StackTail];
-stack({sub}, [Stack1,Stack2 | StackTail])->
-	Sum = Stack1 - Stack2,
-	[Sum | StackTail];
-stack({divide}, [Stack1,Stack2 | StackTail])->
-	Sum = Stack1 / Stack2,
-	[Sum | StackTail];
-stack({multiply}, [Stack1,Stack2 | StackTail])->
-	Sum = Stack1 * Stack2,
-	[Sum | StackTail];
-stack({ret}, [Stack1,Stack2 | StackTail])->
-	Sum = Stack1 + Stack2,
-	[Sum | StackTail];
-stack({pop}, [StackHead | _])->
-	erlang:display(StackHead).
-
-% pop([Head | StackList])->
-% 	{ok, Head, StackList};		
-% push(Value, StackList)->
-% 	{ok, [Head | StackList]}.
-
-
-
+	{ok, [Value] ++ StackList};
+stack(add, [{int, Value1},{int, Value2} | StackTail])->
+	Sum = {int, Value1 + Value2},
+	{ok, Sum, StackTail};
+stack(sub, [{int, Value1},{int, Value2} | StackTail])->
+	Sum = {int, Value1 - Value2},
+	{ok, Sum, StackTail};
+stack(divide, [{int, Value1},{int, Value2} | StackTail])->
+	Sum = {int, Value2 / Value1},
+	{ok, Sum, StackTail};
+stack(multiply, [{int, Value1},{int, Value2} | StackTail])->
+	case is_integer(Value1) of
+		false -> V1 = list_to_integer(Value1);
+		_ -> V1 = Value1
+	end,
+	case is_integer(Value2) of
+		false -> V2 = list_to_integer(Value2);
+		_ -> V2 = Value2
+	end,
+	Values = V1 * V2,
+	Sum = {int, Values},
+	{ok, Sum, StackTail};
+stack(pop, [StackHead | StackTail])->
+	{ok, StackHead, StackTail}.

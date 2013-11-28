@@ -3,7 +3,7 @@
 %{bracket,left},{int,7},{binOp,add,2},{bracket,left},{int,6},{binOp,divide,3},{int,2},{bracket,right},{bracket,right}
 %  (7+(6/2))
 
-%number
+%Number, push to output queue
 shuntingYard([{int, Integer} | T], Stack, OutputQueue)->
 	erlang:display("shuntingYard Number\n"),
 	% NewOutputQueue = [OutputQueue | {int, Integer}],
@@ -26,7 +26,6 @@ shuntingYard([{binOp, TokenOp, Precedence} | T], Stack,  OutputQueue) ->
 	%push op to stack
 	shuntingYard(T, [{binOp, TokenOp, Precedence}] ++ Stack, OutputQueue);
 
-	
 %Left bracket Push to stack
 shuntingYard([{bracket,left} | T], Stack,  OutputQueue)->
 	erlang:display("shuntingYard LB\n"),
@@ -40,7 +39,7 @@ shuntingYard([{bracket,right} | T], Stack,  OutputQueue)->
 shuntingYard([],[StackHead | StackTail],OutputQueue)->
 	erlang:display("shuntingYard No tokens left\n"),
 	shuntingYard([], StackTail, OutputQueue ++ [StackHead]);
-%Empty tokens and empty stack
+%Empty tokens and empty stack - return the output queue
 shuntingYard([],[],OutputQueue)->
 	OutputQueue.
 
