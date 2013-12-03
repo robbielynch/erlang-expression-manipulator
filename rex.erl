@@ -2,12 +2,13 @@
 %%% @author Robbie <robbie.lynch@outlook.com>
 %%% @copyright (C) 2013, Robbie Lynch
 %%% @doc This module takes as an argument, one string and evaluates the
-%%% 	 erlang expression.
+%%% erlang expression.
 %%%
 %%% @end
 %%% Created :  8 Oct 2013 by Robbie <robbie.lynch@outlook.com>
 %%%-------------------------------------------------------------------
 -module(rex).
+-include_lib("eunit/include/eunit.hrl").
 -export ([parse/1,eval/1,rexify/1,shuntingYard/3,stack/2]).
 
 
@@ -49,7 +50,7 @@ parse([H|T]) when H =:= $) ->
 	lists:append([{bracket, right}], parse(T));
 parse([H, H2|T]) when (H > 47) and (H < 58) and (H2 > 47) and (H2 < 58) ->
 	{ok, Integer, Tail} = getInt([H,H2|T], []),
-	lists:append([{int, Integer}], 
+	lists:append([{int, Integer}],
 	parse(Tail));
 parse([H|T]) when (H > 47) and (H < 58) ->
 	lists:append([{int, H-48}], parse(T)).
@@ -62,8 +63,6 @@ getInt([H|T], Accum) when (H > 47) and (H < 58) ->
 	getInt(T, Integer);
 getInt([H|T], Accum)->
 	{ok, Accum, [H|T]}.
-
-
 
 
 
@@ -116,11 +115,10 @@ popFromStackUntilLeftBracketFound(Tokens, [StackHead | StackTail], OutputQueue)-
 
 
 
-
-evalRPN([],Stack)-> 
+evalRPN([],Stack)->
 	stack(pop, Stack);
 %If token is number, push to stack
-evalRPN([{int, Value} | T], Stack)-> 
+evalRPN([{int, Value} | T], Stack)->
 	erlang:display(Stack),
 	evalRPN(T, [{int, Value}] ++ Stack);
 %If operator
@@ -130,8 +128,6 @@ evalRPN([{binOp, Operator, _} | T], Stack)->
 	{ok, Sum, NewStack3} = stack(Operator, Stack),
 	{ok, NewStack4} = stack({push, Sum}, NewStack3),
 	evalRPN(T, NewStack4).
-	
-
 
 
 
@@ -159,4 +155,23 @@ stack(multiply, [{int, Value1},{int, Value2} | StackTail])->
 	Sum = {int, Values},
 	{ok, Sum, StackTail};
 stack(pop, [StackHead | StackTail])->
-	{ok, StackHead, StackTail}.
+	{ok, StackHead, StackTail};
+stack(pop, [])->
+	{error, emptyStack}.
+
+
+stack_test_()->
+	[
+		?_assert(stack({push, 5}, []) =:= {ok, [5]}),
+		?_assert(stack({push, 5}, [5]) =:= {ok, [5,5]}),
+		?_assert(stack({push, 2}, [5,5]) =:= {ok, [2,5,5]}),
+		?_assert(stack(pop, [5,6,7]) =:= {ok, 5, [6,7]}),
+		?_assert(stack(pop, [5]) =:= {ok, 5, []}),
+		?_assert(stack(pop, []) =:= {error, emptyStack}),
+		?_assert(stack(sub, [{int, 10},{int, 8}]) =:= {ok, {int,2}, []}),
+		?_assert(stack(add, [{int, 10},{int, 8}]) =:= {ok, {int,18}, []}),
+		?_assert(stack(multiply, [{int, 10},{int, 8}]) =:= {ok, {int,80}, []}),
+		?_assert(stack(divide, [{int, 4},{int, 8}]) =:= {ok, {int,2.0}, []}),
+		?_assert(stack(divide, [{int, 4},{int, 8} | [{int, 40}, {int, 9}, {binOp, add}]]) =:= {ok, {int,2.0}, [{int, 40}, {int, 9}, {binOp, add}]})
+
+	].
