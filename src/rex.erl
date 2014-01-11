@@ -14,7 +14,7 @@
 
 
 %DONE Evaluation funtions
-eval({num, X}) -> X;
+eval({int, X}) -> X;
 eval({unOp, _, Y}) -> -eval(Y);
 eval({binOp, add, L, R}) -> eval(L) + eval(R);
 eval({binOp, sub, L, R}) -> eval(L) - eval(R);
@@ -24,7 +24,7 @@ eval({binOp, multiply, L, R}) -> eval(L) * eval(R).
 rexify(S)->
 	Tokens = lists:flatten([parse(S)]),
 	RPNExpression = shuntingYard(Tokens, [], []),
-	{ok, {num, Answer}, _} = evalRPN(RPNExpression, []),
+	{ok, {int, Answer}, _} = evalRPN(RPNExpression, []),
 	Answer.
 
 
@@ -49,28 +49,28 @@ parse([H|T]) when H =:= $( ->
 parse([H|T]) when H =:= $) ->
 	lists:append([{bracket, right}], parse(T));
 parse([H, H2|T]) when (H > 47) and (H < 58) and (H2 > 47) and (H2 < 58) ->
-	{ok, numeger, Tail} = getnum([H,H2|T], []),
-	lists:append([{num, numeger}],
+	{ok, Integer, Tail} = getInt([H,H2|T], []),
+	lists:append([{int, Integer}],
 	parse(Tail));
 parse([H|T]) when (H > 47) and (H < 58) ->
-	lists:append([{num, H-48}], parse(T)).
+	lists:append([{int, H-48}], parse(T)).
 
-%Extracts an number from a string and returns the remaining string
-getnum([], Accum)->
+%Extracts an integer from an string and returns the remaining string
+getInt([], Accum)->
 	{ok, Accum, []};
-getnum([H|T], Accum) when (H > 47) and (H < 58) ->
-	numeger = Accum ++ [H],
-	getnum(T, numeger);
-getnum([H|T], Accum)->
+getInt([H|T], Accum) when (H > 47) and (H < 58) ->
+	Integer = Accum ++ [H],
+	getInt(T, Integer);
+getInt([H|T], Accum)->
 	{ok, Accum, [H|T]}.
 
 
 
 %Number, push to output queue
-shuntingYard([{num, numeger} | T], Stack, OutputQueue)->
+shuntingYard([{int, Integer} | T], Stack, OutputQueue)->
 	erlang:display("shuntingYard Number\n"),
-	% NewOutputQueue = [OutputQueue | {num, numeger}],
-	NewOutputQueue =  OutputQueue ++ [{num, numeger}],
+	% NewOutputQueue = [OutputQueue | {int, Integer}],
+	NewOutputQueue =  OutputQueue ++ [{int, Integer}],
 	shuntingYard(T, Stack, NewOutputQueue);
 
 %Operator - When TokenOp <= StakOp precedence - pop off stack and put it in the output queue, put tokenOp on stack
@@ -118,9 +118,9 @@ popFromStackUntilLeftBracketFound(Tokens, [StackHead | StackTail], OutputQueue)-
 evalRPN([],Stack)->
 	stack(pop, Stack);
 %If token is number, push to stack
-evalRPN([{num, Value} | T], Stack)->
+evalRPN([{int, Value} | T], Stack)->
 	erlang:display(Stack),
-	evalRPN(T, [{num, Value}] ++ Stack);
+	evalRPN(T, [{int, Value}] ++ Stack);
 %If operator
 evalRPN([{binOp, Operator, _} | T], Stack)->
 	% {ok, PoppedValue1, NewStack1} = stack(pop, Stack),
@@ -133,26 +133,26 @@ evalRPN([{binOp, Operator, _} | T], Stack)->
 
 stack({push, Value}, StackList)->
 	{ok, [Value] ++ StackList};
-stack(add, [{num, Value1},{num, Value2} | StackTail])->
-	Sum = {num, Value1 + Value2},
+stack(add, [{int, Value1},{int, Value2} | StackTail])->
+	Sum = {int, Value1 + Value2},
 	{ok, Sum, StackTail};
-stack(sub, [{num, Value1},{num, Value2} | StackTail])->
-	Sum = {num, Value1 - Value2},
+stack(sub, [{int, Value1},{int, Value2} | StackTail])->
+	Sum = {int, Value1 - Value2},
 	{ok, Sum, StackTail};
-stack(divide, [{num, Value1},{num, Value2} | StackTail])->
-	Sum = {num, Value2 / Value1},
+stack(divide, [{int, Value1},{int, Value2} | StackTail])->
+	Sum = {int, Value2 / Value1},
 	{ok, Sum, StackTail};
-stack(multiply, [{num, Value1},{num, Value2} | StackTail])->
-	case is_numeger(Value1) of
-		false -> V1 = list_to_numeger(Value1);
+stack(multiply, [{int, Value1},{int, Value2} | StackTail])->
+	case is_integer(Value1) of
+		false -> V1 = list_to_integer(Value1);
 		_ -> V1 = Value1
 	end,
-	case is_numeger(Value2) of
-		false -> V2 = list_to_numeger(Value2);
+	case is_integer(Value2) of
+		false -> V2 = list_to_integer(Value2);
 		_ -> V2 = Value2
 	end,
 	Values = V1 * V2,
-	Sum = {num, Values},
+	Sum = {int, Values},
 	{ok, Sum, StackTail};
 stack(pop, [StackHead | StackTail])->
 	{ok, StackHead, StackTail};
@@ -168,10 +168,10 @@ stack_test_()->
 		?_assert(stack(pop, [5,6,7]) =:= {ok, 5, [6,7]}),
 		?_assert(stack(pop, [5]) =:= {ok, 5, []}),
 		?_assert(stack(pop, []) =:= {error, emptyStack}),
-		?_assert(stack(sub, [{num, 10},{num, 8}]) =:= {ok, {num,2}, []}),
-		?_assert(stack(add, [{num, 10},{num, 8}]) =:= {ok, {num,18}, []}),
-		?_assert(stack(multiply, [{num, 10},{num, 8}]) =:= {ok, {num,80}, []}),
-		?_assert(stack(divide, [{num, 4},{num, 8}]) =:= {ok, {num,2.0}, []}),
-		?_assert(stack(divide, [{num, 4},{num, 8} | [{num, 40}, {num, 9}, {binOp, add}]]) =:= {ok, {num,2.0}, [{num, 40}, {num, 9}, {binOp, add}]})
+		?_assert(stack(sub, [{int, 10},{int, 8}]) =:= {ok, {int,2}, []}),
+		?_assert(stack(add, [{int, 10},{int, 8}]) =:= {ok, {int,18}, []}),
+		?_assert(stack(multiply, [{int, 10},{int, 8}]) =:= {ok, {int,80}, []}),
+		?_assert(stack(divide, [{int, 4},{int, 8}]) =:= {ok, {int,2.0}, []}),
+		?_assert(stack(divide, [{int, 4},{int, 8} | [{int, 40}, {int, 9}, {binOp, add}]]) =:= {ok, {int,2.0}, [{int, 40}, {int, 9}, {binOp, add}]})
 
 	].
