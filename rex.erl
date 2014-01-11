@@ -1,12 +1,19 @@
 %%%-------------------------------------------------------------------
 %%% @author Robbie <robbie.lynch@outlook.com>
 %%% @copyright (C) 2013, Robbie Lynch
-%%% @doc This module takes as an argument, one string and evaluates the
-%%% erlang expression.
+%%% @doc This module takes as an argument, one string, evaluates the
+%%% 	 erlang expression and returns the value.
 %%%
 %%% @end
-%%% Created :  8 Oct 2013 by Robbie <robbie.lynch@outlook.com>
+%%% Created :  28 Nov 2013 by Robbie <robbie.lynch@outlook.com>
 %%%-------------------------------------------------------------------
+
+
+%Parser		: Takes as input an expression and converts in into an appropriate internal representation; (25 Marks)
+%Evaluator	: Takes as input the internal representation of an expression and returns the value of the expression; (25 Marks)
+%Compiler	: Takes as input the internal representation of an expression and a stack program that returns the value of the expression; (25 Marks)
+%Simulator	: Takes as input a stack program and executes it. (25 Marks)
+
 -module(rex).
 -include_lib("eunit/include/eunit.hrl").
 -export ([parse/1,eval/1,rexify/1,shuntingYard/3,stack/2]).
@@ -30,30 +37,30 @@ rexify(S)->
 
 %Take as input a String
 parse([]) -> [];
-parse([H|T]) when H =:= $~ ->
+parse([$~|T])->
 	lists:append([{unOp, minus}], parse(T));
-%If token is a space just ignore it
-parse([H|T]) when H =:= 32 ->
-	parse(T);
 %Operands - if token is operand, add to parsed list
-parse([H|T]) when H =:= $+ ->
+parse([$+|T])->
 	lists:append([{binOp, add,2}], parse(T));
-parse([H|T]) when H =:= $- ->
+parse([$-|T])->
 	lists:append([{binOp, sub,2}], parse(T));
-parse([H|T]) when H =:= $* ->
+parse([$*|T])->
 	lists:append([{binOp, multiply,3}], parse(T));
-parse([H|T]) when H =:= $/ ->
+parse([$/|T])->
 	lists:append([{binOp, divide,3}], parse(T));
-parse([H|T]) when H =:= $( ->
+parse([$(|T])->
 	lists:append([{bracket, left}], parse(T));
-parse([H|T]) when H =:= $) ->
+parse([$)|T])->
 	lists:append([{bracket, right}], parse(T));
 parse([H, H2|T]) when (H > 47) and (H < 58) and (H2 > 47) and (H2 < 58) ->
 	{ok, numeger, Tail} = getnum([H,H2|T], []),
 	lists:append([{num, numeger}],
 	parse(Tail));
 parse([H|T]) when (H > 47) and (H < 58) ->
-	lists:append([{num, H-48}], parse(T)).
+	lists:append([{int, H-48}], parse(T));
+%If token is a space just ignore it
+parse([_WS|T])->
+	parse(T).
 
 %Extracts an number from a string and returns the remaining string
 getnum([], Accum)->
