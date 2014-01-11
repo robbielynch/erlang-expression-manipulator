@@ -3,4 +3,8 @@ deps
 *.o
 *.beam
 *.plt
+<<<<<<< HEAD
 erl_crash.dump
+=======
+erl_crash.dump
+>>>>>>> 230a2de2616627f36d08797ad768f9e6c866405a
